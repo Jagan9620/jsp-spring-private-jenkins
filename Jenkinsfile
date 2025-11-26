@@ -6,7 +6,7 @@ pipeline {
     }
 
     environment {
-        GIT_URL = "https://github.com/your-private-repo/project.git"
+        GIT_URL = "https://github.com/Jagan9620/jsp-spring-private-jenkins.git"
         CREDS = "git-credentials-id"
     }
 
