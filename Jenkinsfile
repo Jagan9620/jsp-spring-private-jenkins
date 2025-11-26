@@ -2,14 +2,12 @@ pipeline {
     agent any
 
     tools {
-        maven 'maven'
-        
+        maven 'maven'   // Jenkins tool name from Global Tool Config
     }
 
     environment {
         GIT_URL = "https://github.com/your-private-repo/project.git"
         CREDS = "git-credentials-id"
-        BUILD_JAR = ""
     }
 
     stages {
@@ -20,90 +18,65 @@ pipeline {
                     url: "${GIT_URL}",
                     credentialsId: "${CREDS}"
             }
-            post {
-                success { echo "Checkout successful" }
-                failure { echo "Checkout failed" }
-                always  { echo "Checkout stage completed" }
-            }
         }
 
         stage('Maven Build') {
             steps {
                 sh "mvn clean package -DskipTests"
             }
-            post {
-                success { echo "Build success" }
-                failure { echo "Build failed" }
-                always { echo "Maven Build stage completed" }
-            }
         }
 
         stage('Detect JAR Name') {
             steps {
                 script {
-                    BUILD_JAR = sh(
+                    env.BUILD_JAR = sh(
                         script: "ls target/*.jar | head -n 1",
                         returnStdout: true
                     ).trim()
 
-                    if (!BUILD_JAR) {
-                        error("❌ No JAR file found in target/")
+                    if (!env.BUILD_JAR?.trim()) {
+                        error("❌ No JAR found inside target/")
                     }
 
-                    echo "Detected JAR: ${BUILD_JAR}"
+                    echo "🔍 Detected JAR file: ${env.BUILD_JAR}"
                 }
-            }
-            post {
-                success { echo "Detected JAR file successfully" }
-                failure { echo "Failed to detect JAR file" }
-                always { echo "Jar detection stage completed" }
             }
         }
 
-        stage('Run JAR with Conditions') {
+        stage('Run Application') {
             steps {
                 script {
 
-                    echo "Checking if application is already running..."
+                    echo "Checking if running instance exists..."
 
                     def pid = sh(
-                        script: "pgrep -f ${BUILD_JAR} || true",
+                        script: "pgrep -f app.jar || true",
                         returnStdout: true
                     ).trim()
 
                     if (pid) {
-                        echo "JAR running with PID ${pid}. Stopping..."
+                        echo "⚠️ App already running with PID ${pid} — stopping..."
                         sh "kill -9 ${pid}"
+                        sleep 2
                     } else {
                         echo "No running instance found."
                     }
 
-                    // Remove old jar if present
-                    sh """
-                    if [ -f app.jar ]; then
-                        echo "Removing old app.jar"
-                        rm -f app.jar
-                    fi
-                    """
-
-                    echo "Copying new JAR to app.jar"
-                    sh "cp ${BUILD_JAR} app.jar"
+                    echo "Copying JAR..."
+                    sh "cp ${env.BUILD_JAR} app.jar"
 
                     echo "Starting application..."
                     sh "nohup java -jar app.jar > app.log 2>&1 &"
+
+                    echo "Application started successfully."
                 }
-            }
-            post {
-                success { echo "Application started successfully" }
-                failure { echo "Error running the jar file" }
-                always { echo "Run-JAR stage completed" }
             }
         }
     }
 
     post {
-        success { echo "Pipeline completed successfully!" }
-        failure { echo "Pipeline failed!" }
-        always  { echo "Pipeline ended." }
+        always { echo "Pipeline completed." }
+        success { echo "✅ Pipeline success!" }
+        failure { echo "❌ Pipeline failed!" }
     }
 }
